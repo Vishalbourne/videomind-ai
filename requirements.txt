@@ -1,0 +1,28 @@
+# UI
+streamlit>=1.30
+
+# Audio input (YouTube) and local transcription
+yt-dlp
+openai-whisper
+torch
+pydub
+
+# LLM chain (LCEL) with Mistral
+langchain>=0.3
+langchain-core
+langchain-mistralai
+langchain-text-splitters
+langchain-community
+langchain-ollama
+
+# RAG: vector store and embeddings
+langchain-chroma
+chromadb
+langchain-huggingface
+sentence-transformers
+
+# Export
+fpdf2
+
+# Config
+python-dotenv
