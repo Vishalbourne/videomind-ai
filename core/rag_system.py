@@ -8,34 +8,33 @@ from langchain_ollama import ChatOllama
 from rag.Vector_store import retriever_chunk
 
 
+# Combine retrieved chunks into one text
 def format_docs(docs):
-    """Combine retrieved document chunks into one context."""
+
     return "\n\n".join(
         doc.page_content for doc in docs
     )
 
 
-def chain_define():
+# Create RAG chain
+def chain_define(video_id):
 
-    try:
-        print("Creating RAG chain...")
+    print("Creating RAG chain...")
 
-        # Get retriever from vector database
-        retriever = retriever_chunk(k=4)
+    # Get chunks from the selected video
+    retriever = retriever_chunk(
+        video_id=video_id,
+        k=4
+    )
 
-        if retriever is None:
-            raise RuntimeError("Could not create retriever")
+    # Load Mistral model
+    model = ChatOllama(
+        model="mistral:latest",
+        temperature=0
+    )
 
-        # Initialize local Ollama model
-        print("Loading Mistral model...")
-
-        model = ChatOllama(
-            model="mistral:latest",
-            temperature=0
-        )
-
-        # Define prompt
-        prompt = ChatPromptTemplate.from_template("""
+    # Create prompt
+    prompt = ChatPromptTemplate.from_template("""
 You are VideoMind AI, an intelligent video assistant.
 
 Answer the user's question using only the provided video context.
@@ -56,21 +55,17 @@ User Question:
 Answer:
 """)
 
-        # Build RAG chain
-        rag_chain = (
-            {
-                "context": retriever | format_docs,
-                "question": RunnablePassthrough()
-            }
-            | prompt
-            | model
-            | StrOutputParser()
-        )
+    # Build RAG pipeline
+    rag_chain = (
+        {
+            "context": retriever | format_docs,
+            "question": RunnablePassthrough()
+        }
+        | prompt
+        | model
+        | StrOutputParser()
+    )
 
-        print("RAG chain created successfully!")
+    print("RAG chain created successfully!")
 
-        return rag_chain
-
-    except Exception as e:
-        print("Could not create RAG chain:", e)
-        raise
+    return rag_chain

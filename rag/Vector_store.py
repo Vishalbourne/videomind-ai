@@ -1,83 +1,72 @@
 from pathlib import Path
 from langchain_chroma import Chroma
+
 from rag.Chunk_text import splitter_text
 from rag.Embeddings import get_embedding
 
-ROOT_PATH = Path(__file__).resolve().parent.parent
 
-DIRECTORY = ROOT_PATH / "database"
-DIRECTORY.mkdir(exist_ok=True)
+# Database location
+DB_PATH = Path(__file__).resolve().parent.parent / "database"
 
-print("Database directory:", DIRECTORY)
-
-
-def build_vector_database():
-    try:
-        print("Building vector database...")
-
-        embeddings = get_embedding()
-
-        vector_store = Chroma(
-            collection_name="youtube_transcripts_embedding",
-            embedding_function=embeddings,
-            persist_directory=str(DIRECTORY),
-        )
-
-        print("Vector database created successfully")
-        return vector_store
-
-    except Exception as e:
-        print("Could not build vector database:", e)
+# Collection name
+COLLECTION_NAME = "youtube_transcripts_embedding"
 
 
-def add_to_vector(path):
-    """Split the transcript and save the chunks."""
-    try:
-        print("Adding transcript to vector database:", path)
+# Connect to ChromaDB
+def get_vector_store():
 
-        vector_store = build_vector_database()
-
-        if vector_store is None:
-            print("Vector database initialization failed")
-            return None
-
-        chunks = splitter_text(path=path)
-
-        if not chunks:
-            print("No chunks to add")
-            return None
-
-        print("Total chunks:", len(chunks))
-
-        ids = [f"{Path(path).stem}_{i}" for i in range(len(chunks))]
-
-        vector_store.add_documents(chunks, ids=ids)
-
-        print("Chunks added successfully")
-        return vector_store
-
-    except Exception as e:
-        print("Could not add chunks:", e)
+    return Chroma(
+        collection_name=COLLECTION_NAME,
+        embedding_function=get_embedding(),
+        persist_directory=str(DB_PATH)
+    )
 
 
-def retriever_chunk(k=2):
-    """Return a retriever that finds the k most similar chunks."""
-    try:
-        print("Creating retriever...")
+# Store transcript chunks
+def add_to_vector(path, video_id):
 
-        vector_store = build_vector_database()
+    vector_store = get_vector_store()
 
-        if vector_store is None:
-            print("Vector database is unavailable")
-            return None
+    # Split transcript into chunks
+    chunks = splitter_text(path)
 
-        retriever = vector_store.as_retriever(
-            search_kwargs={"k": k}
-        )
+    # Add video information to every chunk
+    for i, chunk in enumerate(chunks):
+        chunk.metadata["video_id"] = video_id
+        chunk.metadata["chunk_index"] = i
 
-        print(f"Retriever created successfully. Top k: {k}")
-        return retriever
+    # Store chunks in ChromaDB
+    ids = [f"{video_id}_{i}" for i in range(len(chunks))]
 
-    except Exception as e:
-        print("Could not create retriever:", e)
-        return None
+    vector_store.add_documents(
+        documents=chunks,
+        ids=ids
+    )
+
+    print("Transcript stored successfully!")
+
+    return vector_store
+
+
+# Retrieve chunks from a particular video
+def retriever_chunk(video_id, k=4):
+
+    vector_store = get_vector_store()
+
+    return vector_store.as_retriever(
+        search_kwargs={
+            "k": k,
+            "filter": {"video_id": video_id}
+        }
+    )
+
+def video_exists(video_id):
+
+    vector_store = get_vector_store()
+
+    result = vector_store.get(
+        where={"video_id": video_id},
+        limit=1
+    )
+
+    return len(result["ids"]) > 0
